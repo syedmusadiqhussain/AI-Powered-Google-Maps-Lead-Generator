@@ -1,4 +1,5 @@
 import os
+import re
 from langchain_openai import ChatOpenAI
 from datetime import datetime
 
@@ -10,20 +11,34 @@ USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36"
 ]
 
+_INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1F]')
+
 def get_current_date():
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
+    return datetime.now().strftime("%Y-%m-%d_%H-%M")
+
+def sanitize_filename_component(value: str, replacement: str = "_") -> str:
+    if value is None:
+        return "output"
+    value = str(value).strip()
+    if not value:
+        return "output"
+    value = re.sub(r"\s+", replacement, value)
+    value = _INVALID_FILENAME_CHARS.sub(replacement, value)
+    value = value.strip(replacement).strip()
+    return value or "output"
 
 async def ainvoke_llm(
     model,  # Specify the model name from OpenRouter
     system_prompt,
     user_message,
+    openrouter_api_key=None,
     response_format=None,
     temperature=0.1
 ):
     llm = ChatOpenAI(
         model=model, 
         temperature=temperature,
-        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+        openai_api_key=openrouter_api_key or os.getenv("OPENROUTER_API_KEY"),
         openai_api_base="https://openrouter.ai/api/v1",
     )
     

@@ -2,7 +2,7 @@ import asyncio
 from src.places_api import search_places, get_coordinates
 from src.business_info import process_businesses
 from src.data_export import save_places_to_excel
-from src.utils import get_current_date
+from src.utils import get_current_date, sanitize_filename_component
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -31,7 +31,7 @@ async def main(location, search_query, num_pages):
         return
         
     # Step 3: Save places data to Excel
-    excel_filename = f"data_{search_query}_{location}_{get_current_date()}.xlsx"
+    excel_filename = f"data_{sanitize_filename_component(search_query)}_{sanitize_filename_component(location)}_{get_current_date()}.xlsx"
     save_places_to_excel(places_data, excel_filename)
     
     # Step 4: Process businesses to get detailed information and update Excel file

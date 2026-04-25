@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from .utils import sanitize_filename_component
 
 def save_places_to_excel(places_data, filename):
     """
@@ -14,8 +15,12 @@ def save_places_to_excel(places_data, filename):
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
     
+    safe_filename = sanitize_filename_component(filename)
+    if not safe_filename.lower().endswith(".xlsx"):
+        safe_filename = f"{safe_filename}.xlsx"
+
     # Set the full file path
-    file_path = os.path.join(data_dir, filename)
+    file_path = os.path.join(data_dir, safe_filename)
     
     # Extract places from all pages
     all_places = []
@@ -41,9 +46,11 @@ def save_places_to_excel(places_data, filename):
         'price_level': place.get('priceLevel', ''),
         'opening_hours': place.get('openingHours', {}),
         'email': '',
+        'email_health': '',
         'facebook': '',
         'twitter': '',
         'instagram': '',
+        'linkedin_url': '',
         'searched': 'NO',
     } for place in all_places])
     
@@ -64,9 +71,17 @@ def update_business_data(df, index, info):
     # Update the row with the new information using the provided index
     if info:
         df.at[index, 'email'] = info.get('email', '')
+        if 'email_health' in info:
+            if 'email_health' not in df.columns:
+                df['email_health'] = ""
+            df.at[index, 'email_health'] = info.get('email_health', '')
         df.at[index, 'facebook'] = info.get('facebook', '')
         df.at[index, 'twitter'] = info.get('twitter', '')
         df.at[index, 'instagram'] = info.get('instagram', '')
+        if 'linkedin_url' in info:
+            if 'linkedin_url' not in df.columns:
+                df['linkedin_url'] = ""
+            df.at[index, 'linkedin_url'] = info.get('linkedin_url', '')
     df.at[index, 'searched'] = "YES"
 
 def load_excel_data(filename: str) -> pd.DataFrame:
@@ -79,11 +94,18 @@ def load_excel_data(filename: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: DataFrame containing the places data
     """
-    # Handle paths with or without data directory
-    if not filename.startswith('data/'):
-        file_path = os.path.join('data', filename)
-    else:
-        file_path = filename
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    data_dir = os.path.join(project_root, "data")
+
+    candidates = []
+    if filename:
+        candidates.append(filename)
+        candidates.append(os.path.join(project_root, filename))
+        candidates.append(os.path.join(data_dir, filename))
+
+    file_path = next((p for p in candidates if os.path.exists(p)), None)
+    if not file_path:
+        raise FileNotFoundError(f"Data file not found: {filename}")
     
     # Check if file exists
     if not os.path.exists(file_path):

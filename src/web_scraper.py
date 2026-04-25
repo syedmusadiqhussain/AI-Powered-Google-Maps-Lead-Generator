@@ -7,33 +7,59 @@ from playwright.async_api import async_playwright
 # Precompiled email pattern for efficiency
 EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
-async def scrape_website(url: str, extract_links: bool = False):
-    """
-    Scrape the given URL using Playwright. If the page contains an iframe, follow its src and scrape that instead.
-    """
-    try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True, args=["--disable-http2"])
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-                locale="en-US",
-                ignore_https_errors=True,
-                extra_http_headers={
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "Referer": "https://www.google.com/"
-                }
-            )
+class WebsiteScraper:
+    def __init__(self, headless: bool = True, timeout_ms: int = 60000):
+        self._headless = headless
+        self._timeout_ms = timeout_ms
+        self._playwright = None
+        self._browser = None
+        self._context = None
 
-            page = await context.new_page()
-            await page.goto(url, timeout=60000, wait_until="domcontentloaded")
+    async def __aenter__(self):
+        self._playwright = await async_playwright().start()
+        self._browser = await self._playwright.chromium.launch(
+            headless=self._headless,
+            args=["--disable-http2"],
+        )
+        self._context = await self._browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+            locale="en-US",
+            ignore_https_errors=True,
+            extra_http_headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.google.com/",
+            },
+        )
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._context:
+            await self._context.close()
+        if self._browser:
+            await self._browser.close()
+        if self._playwright:
+            await self._playwright.stop()
+
+    async def scrape(self, url: str, extract_links: bool = False):
+        page = None
+        try:
+            page = await self._context.new_page()
+            await page.goto(url, timeout=self._timeout_ms, wait_until="domcontentloaded")
+
+            iframe_src = None
+            iframe = await page.query_selector("iframe[src]")
+            if iframe:
+                iframe_src = await iframe.get_attribute("src")
+            if iframe_src:
+                iframe_url = urljoin(page.url, iframe_src)
+                await page.goto(iframe_url, timeout=self._timeout_ms, wait_until="domcontentloaded")
 
             html_content = await page.content()
 
             extracted_links = []
             if extract_links:
-                extracted_links = extract_links_from_html(html_content, page.url)  # make sure this is defined
-                
-            # Convert HTML to markdown
+                extracted_links = extract_links_from_html(html_content, page.url)
+
             h = html2text.HTML2Text()
             h.ignore_links = False
             h.ignore_images = True
@@ -42,9 +68,18 @@ async def scrape_website(url: str, extract_links: bool = False):
             markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content).strip()
 
             return markdown_content, extracted_links
-    except Exception as e:
-        print(f"Error scraping website: {e}")
-        return None, []
+        except Exception as e:
+            print(f"Error scraping website: {e}")
+            return None, []
+        finally:
+            if page:
+                await page.close()
+
+async def scrape_website(url: str, extract_links: bool = False, scraper: WebsiteScraper | None = None):
+    if scraper:
+        return await scraper.scrape(url, extract_links=extract_links)
+    async with WebsiteScraper() as s:
+        return await s.scrape(url, extract_links=extract_links)
     
 def extract_links_from_html(html_content: str, main_url: str = ""):
     """

@@ -1,4 +1,10 @@
 .env
-.gitignore
-/venv
-__pycache__
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+data/*.xlsx
+data/*.csv
+data/*.json
+data/*
+debug.log
+take_screenshots.py
