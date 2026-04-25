@@ -1,7 +1,10 @@
 # AI-Powered Google Maps Lead Generator
 
-![Screenshot 1](screenshot1.png)
-![Screenshot 2](screenshot2.png)
+### Scraper — Input Form
+![Scraper Form](screenshot1.png)
+
+### Results & Dashboard
+![Results and Export](screenshot2.png)
 
 ## What it does
 This tool helps you generate business leads from Google Maps by:
